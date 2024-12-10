@@ -69,11 +69,11 @@ let shortest_path grid graph departures =
       in bfs ()
 
 let grid = [|
-"Sabqponm";
-"abcryxxl";
-"accszExk";
-"acctuvwj";
-"abdefghi";
+  "Sabqponm";
+  "abcryxxl";
+  "accszExk";
+  "acctuvwj";
+  "abdefghi";
 |]
 
 let () =
