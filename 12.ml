@@ -77,7 +77,7 @@ let grid = [|
 |]
 
 let () =
-    (* Build the graph *)
+  (* Build the graph *)
   let graph = build_graph grid in
 
   (* Find all positions with elevation 'S' and check the shortest path *)
