@@ -1,3 +1,5 @@
+(* Fuck, this is day 12 of 2022 *)
+
 (* Helper to convert char to elevation *)
 let elevation c =
   match c with
