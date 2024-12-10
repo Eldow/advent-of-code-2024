@@ -31,17 +31,6 @@ let build_graph grid =
   done;
   graph
 
-(* Find the position of a character in the grid *)
-let find_position grid target =
-  let rows = Array.length grid in
-  let cols = String.length grid.(0) in
-  let rec aux x y =
-    if x >= rows then None
-    else if y >= cols then aux (x + 1) 0
-    else if grid.(x).[y] = target then Some (x, y)
-    else aux x (y + 1)
-  in aux 0 0
-
 (* Find all positions of a given character in the grid *)
 let find_all_positions grid target =
   let rows = Array.length grid in
