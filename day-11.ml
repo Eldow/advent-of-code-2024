@@ -1,38 +1,45 @@
+(* Function to transform a number according to the rules *)
 let transform_number n =
-  match n with
-  | 0 -> [1]  (* Rule 1: Replace 0 with 1 *)
-  | _ ->
-      let s = string_of_int n in
-      let len = String.length s in
-      if len mod 2 = 0 then
-        (* Rule 2: Split number with even digits into two halves *)
-        let half = len / 2 in
-        let left = String.sub s 0 half |> int_of_string in
-        let right = String.sub s half (len - half) |> int_of_string in
-        [left; right]
-      else
-        (* Rule 3: Multiply by 2024 *)
-        [n * 2024]
+  if n = 0 then
+    [1]  (* Replace 0 with 1 *)
+  else
+    let s = string_of_int n in
+    if (String.length s) mod 2 = 0 then
+      (* If the number has an even number of digits, split it in half *)
+      let mid = String.length s / 2 in
+      let left = int_of_string (String.sub s 0 mid) in
+      let right = int_of_string (String.sub s mid (String.length s - mid)) in
+      [left; right]
+    else
+      (* If the number is odd, multiply it by 2024 *)
+      [n * 2024]
 
-(* Apply the transformation to a list of integers *)
-let transform_list lst =
-  let rec aux acc = function
-    | [] -> List.rev acc
-    | x :: xs -> aux (List.rev_append (transform_number x) acc) xs
-  in
-  aux [] lst
+(* Function to apply the operations for a fixed number of iterations *)
+let apply_operations lst num_iterations =
+  (* Initialize the frequency table *)
+  let freq = Hashtbl.create 100 in
+  List.iter (fun num -> Hashtbl.replace freq num ((Hashtbl.find_opt freq num |> Option.value ~default:0) + 1)) lst;
 
-(* Apply the transformation iteratively for n times *)
-let apply_transformation n lst =
-  let rec aux current_n current_list =
-    if current_n <= 0 then current_list
-    else aux (current_n - 1) (transform_list current_list)
-  in
-  aux n lst
+  (* Perform transformations for a fixed number of iterations *)
+  for _ = 1 to num_iterations do
+    let new_freq = Hashtbl.create 100 in
+    Hashtbl.iter (fun num count ->
+      let transformed = transform_number num in
+      List.iter (fun new_num ->
+        Hashtbl.replace new_freq new_num ((Hashtbl.find_opt new_freq new_num |> Option.value ~default:0) + count)
+      ) transformed
+    ) freq;
+    (* Replace freq with the new frequency table *)
+    Hashtbl.clear freq;
+    Hashtbl.iter (fun num count -> Hashtbl.replace freq num count) new_freq;
+  done;
+
+  (* Calculate the total count of numbers in the final list *)
+  Hashtbl.fold (fun _ count acc -> acc + count) freq 0
 
 (* Print the result *)
 let () =
   let input_list = [0; 12; 123; 1000; 7] in
   let times = 75 in
-  let transformed_list = apply_transformation times input_list in
-  Printf.printf "Length: %d" (List.length transformed_list)
+  let result = apply_operations input_list times in
+  Printf.printf "Length: %d" result
