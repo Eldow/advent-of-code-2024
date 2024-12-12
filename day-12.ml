@@ -1,93 +1,127 @@
-(* Fuck, this is day 12 of 2022 *)
+(* Helper function to parse the grid into a 2D array *)
+let parse_grid grid = Array.of_list (List.map Array.of_list grid)
 
-(* Helper to convert char to elevation *)
-let elevation c =
-  match c with
-  | 'S' -> 1
-  | 'E' -> 26
-  | c -> Char.code c - Char.code 'a' + 1
-
-(* Directions for moving: up, down, left, right *)
+(* Directions for neighbors: up, down, left, right *)
 let directions = [(-1, 0); (1, 0); (0, -1); (0, 1)]
 
-(* Check if a move is valid *)
-let is_valid_move grid (x, y) (nx, ny) =
-  let rows = Array.length grid in
-  let cols = String.length grid.(0) in
-  nx >= 0 && ny >= 0 && nx < rows && ny < cols &&
-  elevation grid.(nx).[ny] <= elevation grid.(x).[y] + 1
+(* Check if a coordinate is within bounds *)
+let in_bounds grid (x, y) =
+  x >= 0 && y >= 0 && x < Array.length grid && y < Array.length grid.(0)
 
-(* Build the graph as an adjacency list *)
-let build_graph grid =
-  let rows = Array.length grid in
-  let cols = String.length grid.(0) in
-  let graph = Hashtbl.create (rows * cols) in
+(* Helper function to classify a cell's state based on its neighbors *)
+let classify_cell grid (x, y) =
+  let neighbors = List.map (fun (dx, dy) ->
+    let nx, ny = x + dx, y + dy in
+    if in_bounds grid (nx, ny) && grid.(nx).(ny) = grid.(x).(y) then 'X'
+    else 'O'
+  ) directions in
+  neighbors
+
+(* Helper function to classify a cell's state based on its neighbors *)
+let classify_cell grid (x, y) =
+  let neighbors = List.map (fun (dx, dy) ->
+    let nx, ny = x + dx, y + dy in
+    if in_bounds grid (nx, ny) && grid.(nx).(ny) = grid.(x).(y) then 'X'
+    else 'O'
+  ) directions in
+  neighbors
+
+(* Count corners based on the 8 neighbors around the cell *)
+let count_corners grid (x, y) =
+  let neighbor_offsets = [
+    (-1, -1); (-1, 0); (-1, 1); (* Top-left, Top, Top-right *)
+    (0, -1);         (0, 1);   (* Left, Right *)
+    (1, -1); (1, 0); (1, 1)    (* Bottom-left, Bottom, Bottom-right *)
+  ] in
+
+  let neighbors = Array.of_list (List.map (fun (dx, dy) ->
+    let nx, ny = x + dx, y + dy in
+    if in_bounds grid (nx, ny) && grid.(nx).(ny) = grid.(x).(y) then 'X' else 'O'
+  ) neighbor_offsets) in
+
+  (* Analyze the 8 neighbors to count corners *)
+  let corner_count = ref 0 in
+
+  (* Check specific corner configurations using array indexing *)
+  if neighbors.(1) = 'O' && neighbors.(3) = 'O' then incr corner_count; (* Top-left *)
+  if neighbors.(1) = 'X' && neighbors.(3) = 'X' && neighbors.(0) = 'O'  (* Top-left inner *)
+    then incr corner_count;
+
+  if neighbors.(1) = 'O' && neighbors.(4) = 'O' then incr corner_count; (* Top-right *)
+  if neighbors.(1) = 'X' && neighbors.(4) = 'X' && neighbors.(2) = 'O'  (* Top-right inner *)
+    then incr corner_count;
+
+  if neighbors.(3) = 'O' && neighbors.(6) = 'O' then incr corner_count; (* Bottom-left *)
+  if neighbors.(3) = 'X' && neighbors.(6) = 'X' && neighbors.(5) = 'O'  (* Bottom-left inner *)
+    then incr corner_count;
+
+  if neighbors.(4) = 'O' && neighbors.(6) = 'O' then incr corner_count; (* Bottom-right *)
+  if neighbors.(4) = 'X' && neighbors.(6) = 'X' && neighbors.(7) = 'O'  (* Bottom-right inner *)
+    then incr corner_count;
+
+  !corner_count
+
+(* Perform a flood fill to compute the area, perimeter, and corner count *)
+let flood_fill grid visited (start_x, start_y) =
+  let id = grid.(start_x).(start_y) in
+  let queue = Queue.create () in
+  let area = ref 0 in
+  let perimeter = ref 0 in
+  let corners = ref 0 in
+  Queue.add (start_x, start_y) queue;
+  visited.(start_x).(start_y) <- true;
+  while not (Queue.is_empty queue) do
+    let (x, y) = Queue.pop queue in
+    incr area;
+    (* Count corners for this cell *)
+    let corner_count = count_corners grid (x, y) in
+    corners := !corners + corner_count;
+
+    (* Enqueue unvisited neighbors *)
+    List.iter (fun (dx, dy) ->
+      let nx, ny = x + dx, y + dy in
+      if not (in_bounds grid (nx, ny)) || grid.(nx).(ny) <> id then
+        incr perimeter
+      else if not visited.(nx).(ny) then begin
+        visited.(nx).(ny) <- true;
+        Queue.add (nx, ny) queue
+      end
+    ) directions
+  done;
+  (!area, !perimeter, !corners)
+
+(* Compute the total cost of fencing all plots in the grid *)
+let compute_fencing_cost grid =
+  let grid = parse_grid grid in
+  let rows, cols = Array.length grid, Array.length grid.(0) in
+  let visited = Array.make_matrix rows cols false in
+  let total_cost = ref 0 in
+  let reduced_cost = ref 0 in
   for x = 0 to rows - 1 do
     for y = 0 to cols - 1 do
-      let neighbors =
-        List.filter (is_valid_move grid (x, y))
-          (List.map (fun (dx, dy) -> (x + dx, y + dy)) directions)
-      in
-      Hashtbl.add graph (x, y) neighbors
+      if not visited.(x).(y) then
+        let area, perimeter, corners = flood_fill grid visited (x, y) in
+        total_cost := !total_cost + (area * perimeter);
+        reduced_cost := !reduced_cost + (area * corners);
     done
   done;
-  graph
+  !total_cost, !reduced_cost
 
-(* Find all positions of a given character in the grid *)
-let find_all_positions grid target =
-  let rows = Array.length grid in
-  let cols = String.length grid.(0) in
-  let rec aux x y acc =
-    if x >= rows then acc
-    else if y >= cols then aux (x + 1) 0 acc
-    else if grid.(x).[y] = target then aux x (y + 1) ((x, y) :: acc)
-    else aux x (y + 1) acc
-  in aux 0 0 []
+(* Example grid *)
+let grid = [
+  ['R'; 'R'; 'R'; 'R'; 'I'; 'I'; 'C'; 'C'; 'F'; 'F'];
+  ['R'; 'R'; 'R'; 'R'; 'I'; 'I'; 'C'; 'C'; 'C'; 'F'];
+  ['V'; 'V'; 'R'; 'R'; 'R'; 'C'; 'C'; 'F'; 'F'; 'F'];
+  ['V'; 'V'; 'R'; 'C'; 'C'; 'C'; 'J'; 'F'; 'F'; 'F'];
+  ['V'; 'V'; 'V'; 'V'; 'C'; 'J'; 'J'; 'C'; 'F'; 'E'];
+  ['V'; 'V'; 'I'; 'V'; 'C'; 'C'; 'J'; 'J'; 'E'; 'E'];
+  ['V'; 'V'; 'I'; 'I'; 'I'; 'C'; 'J'; 'J'; 'E'; 'E'];
+  ['M'; 'I'; 'I'; 'I'; 'I'; 'I'; 'J'; 'J'; 'E'; 'E'];
+  ['M'; 'I'; 'I'; 'I'; 'S'; 'I'; 'J'; 'E'; 'E'; 'E'];
+  ['M'; 'M'; 'M'; 'I'; 'S'; 'S'; 'J'; 'E'; 'E'; 'E']
+]
 
-(* BFS to find the shortest path from any departure point *)
-let shortest_path grid graph departures =
-  match List.nth (find_all_positions grid 'E') 0 with
-  | goal ->
-      let queue = Queue.create () in
-      let visited = Hashtbl.create (Array.length grid * String.length grid.(0)) in
-      (* Enqueue all departures as starting points *)
-      List.iter (fun start -> Queue.add (start, 0) queue; Hashtbl.add visited start true) departures;
-      let rec bfs () =
-        if Queue.is_empty queue then None
-        else
-          let (current, steps) = Queue.pop queue in
-          if current = goal then Some steps
-          else
-            let neighbors = Hashtbl.find graph current in
-            List.iter (fun neighbor ->
-              if not (Hashtbl.mem visited neighbor) then begin
-                Queue.add (neighbor, steps + 1) queue;
-                Hashtbl.add visited neighbor true
-              end
-            ) neighbors;
-            bfs ()
-      in bfs ()
-
-let grid = [|
-  "Sabqponm";
-  "abcryxxl";
-  "accszExk";
-  "acctuvwj";
-  "abdefghi";
-|]
-
+(* Compute and print the cost *)
 let () =
-  (* Build the graph *)
-  let graph = build_graph grid in
-
-  (* Find all positions with elevation 'S' and check the shortest path *)
-  let departures_s = find_all_positions grid 'S' in  (* all positions with elevation 'S' *)
-  (match shortest_path grid graph departures_s with
-    | Some steps -> Printf.printf "Shortest path (S): %d\n" steps
-    | None -> Printf.printf "No path found for 'S'\n");
-
-  (* Find all positions with elevation 'a' and check the shortest path *)
-  let departures_a = find_all_positions grid 'a' in  (* all positions with elevation 'a' *)
-  (match shortest_path grid graph departures_a with
-    | Some steps -> Printf.printf "Shortest path (multi departures): %d\n" steps
-    | None -> Printf.printf "No path found for 'a'\n")
+  let cost, r_cost = compute_fencing_cost grid in
+  Printf.printf "Total cost of fencing: %d\nReduced cost of fencing: %d\n" cost r_cost
