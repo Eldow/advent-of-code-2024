@@ -17,15 +17,6 @@ let classify_cell grid (x, y) =
   ) directions in
   neighbors
 
-(* Helper function to classify a cell's state based on its neighbors *)
-let classify_cell grid (x, y) =
-  let neighbors = List.map (fun (dx, dy) ->
-    let nx, ny = x + dx, y + dy in
-    if in_bounds grid (nx, ny) && grid.(nx).(ny) = grid.(x).(y) then 'X'
-    else 'O'
-  ) directions in
-  neighbors
-
 (* Count corners based on the 8 neighbors around the cell *)
 let count_corners grid (x, y) =
   let neighbor_offsets = [
